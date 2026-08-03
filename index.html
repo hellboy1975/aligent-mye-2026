@@ -105,6 +105,12 @@
     padding:10px 16px;cursor:pointer;}
   .btn:hover{border-color:var(--yellow);}
   .btn.primary{background:var(--yellow);color:var(--board);border-color:var(--yellow);font-weight:700;}
+  #prevBtn,#nextBtn{font-size:28px;line-height:1;font-weight:700;color:var(--yellow);
+    border-width:2px;padding:4px 22px;border-radius:10px;}
+  #prevBtn:hover,#nextBtn:hover{background:var(--yellow);color:var(--board);border-color:var(--yellow);}
+  .btn:disabled{background:rgba(0,0,0,.2);color:var(--chalk-dim);border-color:var(--chalk-line);
+    cursor:not-allowed;opacity:.5;}
+  .btn:disabled:hover{border-color:var(--chalk-line);}
   .entrygrp{display:flex;align-items:center;gap:10px;}
   #answer{font-family:'JetBrains Mono',monospace;font-size:24px;letter-spacing:.14em;text-transform:uppercase;
     background:rgba(0,0,0,.3);border:2px solid var(--chalk-line);border-radius:10px;color:var(--chalk);
@@ -180,7 +186,7 @@ function H(s){s=(s||'').toUpperCase().replace(/\s+/g,'');let h=5381;for(let i=0;
 const A1=2085945164, A2=2739104967, A3=3862942855;
 
 const phases = [
- { tag:'Phase 1 &middot; The Kit Lockers', hint:'ENTER 4-DIGIT CODE', hash:A1, panels:[
+ { tag:'Phase 1 &middot; The Kit Lockers', hint:'ENTER 4-DIGIT CODE', hash:A1, len:4, panels:[
    `<span class="lock-tag">Lock 1 &middot; Deduction</span>
     <h2>The Missing Result</h2>
     <p class="lede dim" style="margin-bottom:16px;">The <b>final</b> group table and every result &mdash; except one.
@@ -234,7 +240,7 @@ const phases = [
     <div class="digit-note">4th digit = N. &nbsp; Enter all four digits in lock order.</div>`
  ]},
 
- { tag:'Phase 2 &middot; The Tactics Board', hint:'ENTER 14-DIGIT CODE', hash:A2, panels:[
+ { tag:'Phase 2 &middot; The Tactics Board', hint:'ENTER 14-DIGIT CODE', hash:A2, len:14, panels:[
    `<span class="lock-tag">Phase 2 &middot; The Tactics Board</span>
     <h2>Read the Formation Grid</h2>
     <p class="lede dim" style="margin-bottom:10px;">The seven-letter word you need is hidden in the room &mdash; the clues will tell you which one. Map each of its letters onto the grid: read <b>X then Y</b> (column across the top, row down the side), <b>zero-based</b>. Write the two digits for every letter, in the word&rsquo;s order &mdash; <b>fourteen digits</b> in all.</p>
@@ -254,7 +260,7 @@ const phases = [
     <div class="digit-note">Enter the 14-digit code &mdash; each letter as X-then-Y, in the word order.</div>`
  ]},
 
- { tag:'Phase 3 &middot; The Exit Door', hint:'ENTER 4-DIGIT EXIT CODE', hash:A3, panels:[
+ { tag:'Phase 3 &middot; The Exit Door', hint:'ENTER 4-DIGIT EXIT CODE', hash:A3, len:4, panels:[
    `<span class="lock-tag">Phase 3 &middot; The Exit Door</span>
     <h2>The Exit Keypad</h2>
     <p class="lede">Solve the challenge in the room: the sudoku picks <b>four cipher cards</b>, and each card decodes to an icon. Press those four icons here <b>in ascending order of their numbers</b>, then hit Unlock.</p>
@@ -284,8 +290,15 @@ const nextBtn=document.getElementById('nextBtn');
 const submitBtn=document.getElementById('submitBtn');
 const toast=document.getElementById('toast');
 let seq=[];
-function iconTap(name,el){ if(!started||escaped||timeup) return; if(seq.length>=4) return; seq.push(name); answerEl.value=seq.join('').toUpperCase(); var strip=document.getElementById('seqstrip'); if(strip){ var im=document.createElement('img'); im.src=el.querySelector('img').src; im.className='seqimg'; strip.appendChild(im); } }
-function clearSeq(){ seq=[]; answerEl.value=''; var strip=document.getElementById('seqstrip'); if(strip) strip.innerHTML=''; }
+function iconTap(name,el){ if(!started||escaped||timeup) return; if(seq.length>=4) return; seq.push(name); answerEl.value=seq.join('').toUpperCase(); var strip=document.getElementById('seqstrip'); if(strip){ var im=document.createElement('img'); im.src=el.querySelector('img').src; im.className='seqimg'; strip.appendChild(im); } updateSubmitState(); }
+function clearSeq(){ seq=[]; answerEl.value=''; var strip=document.getElementById('seqstrip'); if(strip) strip.innerHTML=''; updateSubmitState(); }
+
+// Unlock stays disabled until the round's full-length code is entered.
+function submitReady(){
+  if(ph===phases.length-1) return seq.length===4;   // icon phase: four icons picked
+  return answerEl.value.trim().length===phases[ph].len;
+}
+function updateSubmitState(){ submitBtn.disabled=!submitReady(); }
 
 
 const PER_ROUND=5, BONUS=5, BONUS_UNDER=300;
@@ -364,9 +377,11 @@ function render(){
   nextBtn.style.visibility=multi?'visible':'hidden';
   panelLabel.textContent = multi ? ('Lock '+(pan+1)+' / '+P.panels.length) : P.tag.replace(/&middot;/g,'·').replace(/<[^>]+>/g,'');
   answerEl.placeholder=P.hint;
+  if(ph===phases.length-1){ answerEl.removeAttribute('maxlength'); } else { answerEl.maxLength=P.len; }
   updatePips();
   paintHud();
   if(ph===phases.length-1){ seq=[]; }
+  updateSubmitState();
   answerEl.focus();
 }
 
@@ -379,6 +394,7 @@ function showToast(msg){
 
 function submit(){
   if(!started||escaped||timeup) return;
+  if(!submitReady()) return;
   const val=answerEl.value;
   if(Number(H(val))===Number(phases[ph].hash)){
     feedbackEl.textContent=''; answerEl.value='';
@@ -410,6 +426,7 @@ prevBtn.onclick=()=>{ if(pan>0){pan--; render();} };
 nextBtn.onclick=()=>{ const P=phases[ph]; if(pan<P.panels.length-1){pan++; render();} };
 submitBtn.onclick=submit;
 
+answerEl.addEventListener('input',updateSubmitState);
 answerEl.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); submit(); } });
 
 document.addEventListener('keydown',e=>{
